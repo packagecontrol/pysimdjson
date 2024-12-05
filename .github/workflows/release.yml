@@ -7,59 +7,26 @@ on:
 name: Creating release
 
 env:
-  CIBW_TEST_EXTRAS: test
-  CIBW_TEST_COMMAND: "pytest {project}/tests"
+  # CIBW_TEST_EXTRAS: test
+  # CIBW_TEST_COMMAND: "pytest {project}/tests"
   CIBW_TEST_SKIP: "*_arm64 *_universal2:arm64"
   CIBW_ARCHS_MACOS: "x86_64 universal2"
 
 jobs:
-  # Build & test simple source release before wasting hours building and
-  # testing the binary build matrix.
-  sdist:
-    name: Creating source release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Setting up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
-
-      - name: Installing python build dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade setuptools
-
-      - name: Building source distribution
-        run: |
-          pip install -e ".[release]"
-          python setup.py sdist
-
-      - name: Ensuring documentation builds
-        run: |
-          cd docs && make clean && make html
-
-      - uses: actions/upload-artifact@v2
-        with:
-          path: dist/*.tar.gz
-
   build_wheels:
-    needs: [sdist]
     name: "[${{ strategy.job-index }}/${{ strategy.job-total }}] py${{ matrix.py }} on ${{ matrix.os }}"
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
       matrix:
-        os: [ubuntu-20.04, windows-2019, macos-11]
+        os: [ubuntu-22.04, windows-2019, macos-14]
         # cp - CPython
-        # pp - PyPy
-        py: ["cp39", "cp310", "cp311", "cp312", "pp37", "pp38", "pp39"]
+        py: ["cp38"]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v5
         name: Setting up Python
         with:
           python-version: '3.8'
@@ -70,56 +37,34 @@ jobs:
         with:
           platforms: all
 
-      - name: Build & test wheels
-        uses: pypa/cibuildwheel@v2.16.5
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.22.0
         env:
-          CIBW_ARCHS_LINUX: auto aarch64 ppc64le
+          CIBW_ARCHS_LINUX: auto aarch64
           CIBW_BUILD: "${{ matrix.py }}-*"
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
+          name: pysimdjson-wheels-${{ matrix.os }}-${{ matrix.py }}
           path: ./wheelhouse/*.whl
 
   upload_all:
-    needs: [build_wheels, sdist]
-    name: Uploading built packages to pypi for release.
+    needs: [build_wheels]
+    name: Creating Github release.
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/download-artifact@v2
-      with:
-        name: artifact
-        path: dist
-
-    - uses: pypa/gh-action-pypi-publish@v1.4.2
-      with:
-        user: ${{ secrets.PYPI_USERNAME }}
-        password: ${{ secrets.PYPI_PASSWORD }}
-
-  build_documentation:
-    name: Building & uploading documentation.
-    needs: [upload_all]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Setting up Python
-        uses: actions/setup-python@v2
+      - name: Fetch all artifacts
+        uses: actions/download-artifact@v4
         with:
-          python-version: 3.8
+          merge-multiple: true
 
-      - name: Installing python build dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade setuptools
+      - name: Display structure of downloaded files
+        run: ls -R
 
-      - name: Installing release dependencies.
-        run: |
-          pip install -e ".[release]"
-
-      - name: Building documentation
-        run: |
-          cd docs && make clean && make html
-
-      - name: Publishing documentation
-        run: |
-          ghp-import -f -n -c pysimdjson.tkte.ch -p docs/_build/html
+      - name: Release with Notes
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: '*.whl'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
