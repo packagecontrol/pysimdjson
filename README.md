@@ -1,14 +1,12 @@
-![PyPI - License](https://img.shields.io/pypi/l/pysimdjson.svg?style=flat-square)
-![Tests](https://github.com/TkTech/pysimdjson/workflows/Run%20tests/badge.svg)
-
 # pysimdjson
 
 Python bindings for the [simdjson][] project, a SIMD-accelerated JSON parser.
 If SIMD instructions are unavailable a fallback parser is used, making
 pysimdjson safe to use anywhere.
 
-Bindings are currently tested on OS X, Linux, and Windows for Python version
-3.9 to 3.12.
+> [!NOTE]
+>
+> This fork ships python 3.8 wheel files for Sublime Text 4 plugin ecosystem.
 
 ## 📝 Documentation
 
